@@ -65,6 +65,25 @@ If `docs/CODEBASE_MAP.md` already exists, Cartographer will:
 
 Just run `/cartographer` again to update.
 
+## Multi-Assistant Setup
+
+To install Cartographer instructions for other assistants (Copilot, Cursor,
+Codex, OpenCode, Antigravity), run the interactive installer from the repo root:
+
+```bash
+python3 scripts/install.py
+```
+
+List targets or install a subset:
+
+```bash
+python3 scripts/install.py --list-targets
+python3 scripts/install.py --target copilot,cursor
+```
+
+The installer uses best-effort default paths for each assistant; adjust as
+needed for your environment.
+
 ## How it Works
 
 ```

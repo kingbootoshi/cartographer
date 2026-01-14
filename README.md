@@ -29,6 +29,25 @@ A Claude Code plugin that maps and documents codebases of any size using paralle
 
 Or just say "map this codebase" and it will trigger automatically.
 
+## Multi-Assistant Setup
+
+To install Cartographer instructions for other assistants (Copilot, Cursor,
+Codex, OpenCode, Antigravity), run the interactive installer:
+
+```bash
+python3 scripts/install.py
+```
+
+List targets or install a subset:
+
+```bash
+python3 scripts/install.py --list-targets
+python3 scripts/install.py --target copilot,cursor
+```
+
+The installer uses best-effort default paths for each assistant; adjust as
+needed for your environment.
+
 ## What it Does
 
 Cartographer orchestrates multiple Sonnet subagents (with 1M token context windows) to analyze your entire codebase in parallel, then synthesizes their findings into:

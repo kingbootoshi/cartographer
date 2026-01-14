@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Maps and documents codebases of any size using parallel AI subagents",
-    "version": "1.0.0"
+    "version": "1.1.2"
   },
   "plugins": [
     {
       "name": "cartographer",
       "source": "./plugins/cartographer",
       "description": "Maps and documents codebases of any size by orchestrating parallel subagents. Creates docs/CODEBASE_MAP.md with architecture, file purposes, dependencies, and navigation guides.",
-      "version": "1.1.0",
+      "version": "1.1.2",
       "category": "developer tools",
       "keywords": ["codebase", "architecture", "documentation", "mapping", "onboarding", "subagents"]
     }
