@@ -1,0 +1,13 @@
+{
+  "name": "cartographer",
+  "version": "1.0.0",
+  "description": "Maps and documents codebases of any size using parallel AI subagents. Creates CODEBASE_MAP.md with architecture, file purposes, dependencies, and navigation guides.",
+  "author": {
+    "name": "Bootoshi",
+    "url": "https://github.com/kingbootoshi"
+  },
+  "repository": "https://github.com/kingbootoshi/cartographer",
+  "license": "MIT",
+  "keywords": ["codebase-mapping", "documentation", "architecture", "subagents"],
+  "skills": "./plugins/cartographer/skills/"
+}
