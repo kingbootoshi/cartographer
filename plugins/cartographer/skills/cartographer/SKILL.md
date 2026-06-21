@@ -52,9 +52,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/cartographer/scripts/scan-codebase.py . --f
 
 If not using UV and tiktoken is missing:
 ```bash
-pip install tiktoken
+pip install 'tiktoken>=0.7,<1.0'
 # or
-pip3 install tiktoken
+pip3 install 'tiktoken>=0.7,<1.0'
 ```
 
 The output provides:
@@ -289,11 +289,11 @@ Always use Sonnet subagents - best balance of capability and cost for file analy
 
 **Scanner fails with tiktoken error:**
 ```bash
-pip install tiktoken
+pip install 'tiktoken>=0.7,<1.0'
 # or
-pip3 install tiktoken
+pip3 install 'tiktoken>=0.7,<1.0'
 # or with uv:
-uv pip install tiktoken
+uv pip install 'tiktoken>=0.7,<1.0'
 ```
 
 **Python not found:**
