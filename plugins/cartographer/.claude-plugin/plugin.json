@@ -1,5 +1,6 @@
 {
   "name": "cartographer",
+  "version": "1.4.0",
   "description": "Maps and documents codebases of any size using parallel AI subagents",
   "author": {
     "name": "Bootoshi",
