@@ -45,6 +45,7 @@ export const SOURCE_EXTENSIONS = new Set([
 	".rs",
 	".java",
 	".cs",
+	".swift",
 	".sh",
 	".css",
 	".scss",

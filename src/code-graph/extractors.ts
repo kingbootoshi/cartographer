@@ -107,11 +107,13 @@ export function extractImports(
 		return extractEcmaImports(file.path, text, allPaths);
 	}
 	if (ext === ".py") return extractPythonImports(text);
+	if (ext === ".swift") return extractSwiftImports(text);
 	return [];
 }
 
 export function extractSymbols(file: InventoryFile, text: string): readonly SymbolFact[] {
 	const ext = extname(file.path).toLowerCase();
+	if (ext === ".swift") return extractSwiftSymbols(text);
 	if (![".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"].includes(ext)) return [];
 	return symbolPatterns.flatMap((pattern) =>
 		[...text.matchAll(pattern.regex)].flatMap((match) => symbolFact(text, pattern, match)),
@@ -289,6 +291,56 @@ function extractPythonImports(text: string): readonly ImportFact[] {
 		}
 	}
 	return dedupeImports(facts);
+}
+
+// Swift imports are module-level (frameworks/targets), never file paths, so every
+// import maps to an externalPackage. Handles attributes (`@testable`, `@preconcurrency`,
+// `@_exported`) and scoped imports (`import class Foundation.NSString` -> Foundation).
+function extractSwiftImports(text: string): readonly ImportFact[] {
+	const facts: ImportFact[] = [];
+	const pattern =
+		/^\s*(?:@[\w()]+\s+)*import\s+(?:(?:class|struct|enum|protocol|typealias|func|var|let)\s+)?([A-Za-z_]\w*)/gm;
+	for (const match of text.matchAll(pattern)) {
+		const specifier = match[1];
+		if (specifier !== undefined) {
+			facts.push({ specifier, externalPackage: specifier, typeOnly: false });
+		}
+	}
+	return dedupeImports(facts);
+}
+
+// Swift declarations. Kind mapping onto SymbolFact kinds: class/actor -> class,
+// protocol -> interface, struct/enum/typealias -> type, func -> function.
+// "exported" means project-visible: anything not private/fileprivate (app targets
+// rely on internal visibility, unlike ES modules' explicit `export`).
+const swiftSymbolPatterns: Array<{ readonly kind: SymbolFact["kind"]; readonly regex: RegExp }> = [
+	{ kind: "class", regex: /\b(?:class(?!\s+(?:func|var)\b)|actor)\s+([A-Za-z_]\w*)/g },
+	{ kind: "interface", regex: /\bprotocol\s+([A-Za-z_]\w*)/g },
+	{ kind: "type", regex: /\b(?:struct|enum|typealias)\s+([A-Za-z_]\w*)/g },
+	{ kind: "function", regex: /\bfunc\s+([A-Za-z_]\w*)/g },
+];
+
+function extractSwiftSymbols(text: string): readonly SymbolFact[] {
+	return swiftSymbolPatterns.flatMap((pattern) =>
+		[...text.matchAll(pattern.regex)].flatMap((match) => swiftSymbolFact(text, pattern.kind, match)),
+	);
+}
+
+function swiftSymbolFact(
+	text: string,
+	kind: SymbolFact["kind"],
+	match: RegExpMatchArray,
+): readonly SymbolFact[] {
+	const name = match[1];
+	if (name === undefined) return [];
+	const index = match.index ?? 0;
+	const lineStart = text.lastIndexOf("\n", index) + 1;
+	const line = text.slice(lineStart, index + match[0].length);
+	if (/^\s*\/\//.test(line)) return [];
+	// scoped imports (`import class UIKit.UIImage`) declare nothing
+	if (/^\s*(?:@[\w()]+\s+)*import\b/.test(line)) return [];
+	const exported = !/\b(?:private|fileprivate)\b/.test(line);
+	return [{ name, kind, line: lineForIndex(text, index), exported }];
 }
 
 function importFact(path: string, specifier: string, typeOnly: boolean, allPaths: ReadonlySet<string>): ImportFact {
