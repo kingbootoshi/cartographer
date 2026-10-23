@@ -106,7 +106,7 @@ export function extractImports(
 	if ([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"].includes(ext)) {
 		return extractEcmaImports(file.path, text, allPaths);
 	}
-	if (ext === ".py") return extractPythonImports(text);
+	if (ext === ".py") return extractPythonImports(file.path, text, allPaths);
 	return [];
 }
 
@@ -280,15 +280,70 @@ function docReferenceTargetPath(
 	return [normalized, rootRelative].find((candidate) => allPaths.has(candidate));
 }
 
-function extractPythonImports(text: string): readonly ImportFact[] {
+function extractPythonImports(path: string, text: string, allPaths: ReadonlySet<string>): readonly ImportFact[] {
 	const facts: ImportFact[] = [];
-	for (const match of text.matchAll(/^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))/gm)) {
-		const specifier = match[1] ?? match[2];
-		if (specifier !== undefined) {
-			facts.push({ specifier, externalPackage: specifier.split(".")[0], typeOnly: false });
+	for (const match of text.matchAll(/^[ \t]*(?:from[ \t]+([\w.]+)[ \t]+import[ \t]+([^\n#]+)|import[ \t]+([^\n#]+))/gm)) {
+		const fromSpecifier = match[1];
+		if (fromSpecifier !== undefined) {
+			facts.push(...pythonFromImportFacts(path, fromSpecifier, pythonNames(match[2] ?? ""), allPaths));
+			continue;
+		}
+		for (const specifier of pythonNames(match[3] ?? "")) {
+			facts.push(pythonImportFact(path, specifier, allPaths));
 		}
 	}
 	return dedupeImports(facts);
+}
+
+function pythonNames(list: string): readonly string[] {
+	return list
+		.replace(/[()\\]/g, " ")
+		.split(",")
+		.map((part) => part.trim().split(/\s+as\s+/)[0]?.trim() ?? "")
+		.filter((name) => /^[\w.]+$/.test(name));
+}
+
+// `from pkg import mod` may name a submodule; `from . import mod` always does.
+function pythonFromImportFacts(
+	path: string,
+	specifier: string,
+	names: readonly string[],
+	allPaths: ReadonlySet<string>,
+): readonly ImportFact[] {
+	const separator = /^\.+$/.test(specifier) ? "" : ".";
+	const submodules = names.flatMap((name) => {
+		const targetPath = resolvePythonImport(path, `${specifier}${separator}${name}`, allPaths);
+		return targetPath === undefined ? [] : [{ specifier: `${specifier}${separator}${name}`, targetPath, typeOnly: false }];
+	});
+	if (submodules.length > 0 && /^\.+$/.test(specifier)) return submodules;
+	return [pythonImportFact(path, specifier, allPaths), ...submodules];
+}
+
+function pythonImportFact(path: string, specifier: string, allPaths: ReadonlySet<string>): ImportFact {
+	const targetPath = resolvePythonImport(path, specifier, allPaths);
+	if (targetPath !== undefined) return { specifier, targetPath, typeOnly: false };
+	// An unresolved relative import is still local, never a third-party package.
+	if (specifier.startsWith(".")) return { specifier, typeOnly: false };
+	return { specifier, externalPackage: specifier.split(".")[0], typeOnly: false };
+}
+
+// Mirrors how Python finds a module for a script: relative to the package for
+// relative imports, otherwise the script's own directory (sys.path[0]) and then
+// the repository root.
+function resolvePythonImport(path: string, specifier: string, allPaths: ReadonlySet<string>): string | undefined {
+	const dots = specifier.match(/^\.*/)?.[0].length ?? 0;
+	const modulePath = specifier.slice(dots).split(".").filter(Boolean).join("/");
+	let packageDir = dirname(path);
+	for (let level = 1; level < dots; level++) packageDir = dirname(packageDir);
+	const bases = dots > 0 ? [packageDir] : [dirname(path), "."];
+	for (const base of bases) {
+		const module = normalizePath(normalize(join(base, modulePath)));
+		const candidates =
+			modulePath === "" ? [`${module}/__init__.py`] : [`${module}.py`, `${module}/__init__.py`];
+		const found = candidates.map((candidate) => candidate.replace(/^\.\//, "")).find((c) => allPaths.has(c));
+		if (found !== undefined) return found;
+	}
+	return undefined;
 }
 
 function importFact(path: string, specifier: string, typeOnly: boolean, allPaths: ReadonlySet<string>): ImportFact {

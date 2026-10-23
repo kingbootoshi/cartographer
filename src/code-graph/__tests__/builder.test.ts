@@ -213,6 +213,37 @@ describe("buildCodeGraph", () => {
 		expect(typeEdges.map((edge) => edge.kind)).toEqual(["TYPE_IMPORTS"]);
 	});
 
+	test("resolves local Python imports to files and keeps the rest external", async () => {
+		await mkdir(join(tempDir, "scripts/lib"), { recursive: true });
+		await mkdir(join(tempDir, "app/pkg"), { recursive: true });
+		await writeFile(join(tempDir, "scripts/lib/helper.py"), "VALUE = 1\n");
+		await writeFile(
+			join(tempDir, "scripts/lib/tool.py"),
+			["import os, sys", "import helper as h", "import missing_pkg", "from helper import VALUE"].join("\n"),
+		);
+		await writeFile(join(tempDir, "app/__init__.py"), "");
+		await writeFile(join(tempDir, "app/pkg/__init__.py"), "");
+		await writeFile(join(tempDir, "app/pkg/util.py"), "def f(): pass\n");
+		await writeFile(join(tempDir, "app/pkg/mod.py"), "from . import util\nfrom .. import pkg\n");
+		await writeFile(join(tempDir, "app/main.py"), "from app.pkg import util\nfrom .nowhere import x\n");
+
+		const graph = await buildCodeGraph({ root: tempDir });
+		const importsFrom = (from: string) =>
+			graph.edges
+				.filter((edge) => edge.kind === "IMPORTS" && edge.from === from)
+				.map((edge) => edge.to)
+				.sort();
+
+		expect(importsFrom("file:scripts/lib/tool.py")).toEqual([
+			"external:missing_pkg",
+			"external:os",
+			"external:sys",
+			"file:scripts/lib/helper.py",
+		]);
+		expect(importsFrom("file:app/pkg/mod.py")).toEqual(["file:app/pkg/__init__.py", "file:app/pkg/util.py"]);
+		expect(importsFrom("file:app/main.py")).toEqual(["file:app/pkg/__init__.py", "file:app/pkg/util.py"]);
+	});
+
 	test("infers TESTS edges from colocated __tests__ naming conventions", async () => {
 		await mkdir(join(tempDir, "src/core/harness"), { recursive: true });
 		await mkdir(join(tempDir, "src/core/__tests__"), { recursive: true });
